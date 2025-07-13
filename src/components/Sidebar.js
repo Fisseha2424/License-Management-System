@@ -17,14 +17,15 @@ const Sidebar = () => {
             License Management
           </Link>
         </li>
+
         <li className="sidebar-item">
-          <Link to="/payments" className="sidebar-link">
+          <Link to="/fees" className="sidebar-link">
             Payment Management
           </Link>
         </li>
         <li className="sidebar-item">
-          <Link to="/fees" className="sidebar-link">
-            Fee Management
+          <Link to="/" className="sidebar-link">
+            Client direct payment
           </Link>
         </li>
       </ul>

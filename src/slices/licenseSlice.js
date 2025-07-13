@@ -124,7 +124,7 @@ export const checkExpiry = createAsyncThunk(
       const response = await axios.get(`${API_URL}/License/check-expiry`, {
         headers: { "Content-Type": "application/json" },
       });
-      toast.success("Expiry checked successfully!");
+      // toast.success("Expiry checked successfully!");
       return response.data;
     } catch (err) {
       const errorMessage =
@@ -136,7 +136,8 @@ export const checkExpiry = createAsyncThunk(
         status: err.response?.status,
         data: err.response?.data,
       });
-      toast.error(errorMessage);
+
+      // toast.error(errorMessage);
       return rejectWithValue(errorMessage);
     }
   }
@@ -152,7 +153,7 @@ export const getPublicKey = createAsyncThunk(
           headers: { "Content-Type": "application/json" },
         }
       );
-      toast.success("Public key retrieved successfully!");
+      // toast.success("Public key retrieved successfully!");
       return response.data;
     } catch (err) {
       const errorMessage =
@@ -164,7 +165,7 @@ export const getPublicKey = createAsyncThunk(
         status: err.response?.status,
         data: err.response?.data,
       });
-      toast.error(errorMessage);
+      // toast.error(errorMessage);
       return rejectWithValue(errorMessage);
     }
   }
@@ -181,7 +182,7 @@ export const importByPublicKey = createAsyncThunk(
           headers: { "Content-Type": "application/json" },
         }
       );
-      toast.success("License imported successfully!");
+      // toast.success("License imported successfully!");
       return response.data;
     } catch (err) {
       const errorMessage =
@@ -193,7 +194,7 @@ export const importByPublicKey = createAsyncThunk(
         status: err.response?.status,
         data: err.response?.data,
       });
-      toast.error(errorMessage);
+      // toast.error(errorMessage);
       return rejectWithValue(errorMessage);
     }
   }

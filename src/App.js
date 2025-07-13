@@ -11,7 +11,7 @@ import Sidebar from "./components/Sidebar";
 import CardView from "./components/CardView";
 import CompanyManagementDashboard from "./Dashboard/CompanyManagementDashboard";
 import LicenseManagementDashboard from "./Dashboard/LicenseManagementDashboard";
-import PaymentManagementDashboard from "./Dashboard/PaymentManagementDashboard";
+import PaymentManagementDashboard from "./Dashboard/ClientDirectPaymentDashboard";
 import FeeManagementDashboard from "./Dashboard/FeeManagementDashboard";
 import CompanyPage from "./pages/CompanyPage";
 import ProductPage from "./pages/ProductPage";

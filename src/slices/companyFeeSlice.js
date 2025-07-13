@@ -62,11 +62,17 @@ export const createCompanyFeeStructure = createAsyncThunk(
 
 export const updateCompanyFeeStructure = createAsyncThunk(
   "companyFee/updateCompanyFeeStructure",
-  async ({ id, data }, { rejectWithValue }) => {
+  async ({ CompanyFeeStructureID, data }, { rejectWithValue }) => {
     try {
       const response = await axios.put(
-        `${API_URL}/CompanyFeeStructure/${id}`,
-        data,
+        `${API_URL}/CompanyFeeStructure/${CompanyFeeStructureID}`,
+        {
+          companyProductID: data.companyProductID,
+          feeID: data.feeID,
+          paidAmount: data.paidAmount,
+          unpaidAmount: data.unpaidAmount,
+          payableAmount: data.payableAmount,
+        },
         { headers: { "Content-Type": "application/json" } }
       );
       toast.success("Company fee structure updated successfully!");
@@ -88,16 +94,16 @@ export const updateCompanyFeeStructure = createAsyncThunk(
 
 export const deleteCompanyFeeStructure = createAsyncThunk(
   "companyFee/deleteCompanyFeeStructure",
-  async (id, { rejectWithValue }) => {
+  async (CompanyFeeStructureID, { rejectWithValue }) => {
     try {
-      console.log("Deleting fee structure with ID:", id);
+      console.log("Deleting fee structure with ID:", CompanyFeeStructureID);
       const response = await axios.delete(
-        `${API_URL}/CompanyFeeStructure/${id}`,
+        `${API_URL}/CompanyFeeStructure/${CompanyFeeStructureID}`,
         { headers: { "Content-Type": "application/json" } }
       );
       console.log("Delete response:", response.data);
       toast.success("Company fee structure deleted successfully!");
-      return id;
+      return CompanyFeeStructureID;
     } catch (err) {
       const errorMessage =
         err.response?.data?.message ||
@@ -106,7 +112,80 @@ export const deleteCompanyFeeStructure = createAsyncThunk(
       console.error("Delete fee structure error:", {
         status: err.response?.status,
         data: err.response?.data,
-        id,
+        CompanyFeeStructureID,
+      });
+      toast.error(errorMessage);
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
+
+export const getFeeStructuresByCompanyProductId = createAsyncThunk(
+  "companyFee/getFeeStructuresByCompanyProductId",
+  async (companyProductId, { rejectWithValue }) => {
+    try {
+      const response = await axios.get(
+        `${API_URL}/CompanyFeeStructure/company-product/${companyProductId}`,
+        { headers: { "Content-Type": "application/json" } }
+      );
+      return response.data;
+    } catch (err) {
+      const errorMessage =
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to fetch fee structures by company product ID";
+      console.error("Get fee structures by company product ID error:", {
+        status: err.response?.status,
+        data: err.response?.data,
+      });
+      toast.error(errorMessage);
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
+
+export const applyPaymentToFee = createAsyncThunk(
+  "companyFee/applyPaymentToFee",
+  async ({ CompanyFeeStructureID, paymentData }, { rejectWithValue }) => {
+    try {
+      const response = await axios.post(
+        `${API_URL}/CompanyFeeStructure/${CompanyFeeStructureID}/applyPayment`,
+        paymentData,
+        { headers: { "Content-Type": "application/json" } }
+      );
+      toast.success("Payment applied to fee structure successfully!");
+      return response.data;
+    } catch (err) {
+      const errorMessage =
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to apply payment to fee structure";
+      console.error("Apply payment error:", {
+        status: err.response?.status,
+        data: err.response?.data,
+      });
+      toast.error(errorMessage);
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
+
+export const getFeeSummary = createAsyncThunk(
+  "companyFee/getFeeSummary",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await axios.get(`${API_URL}/FeeSummary`, {
+        headers: { "Content-Type": "application/json" },
+      });
+      return response.data;
+    } catch (err) {
+      const errorMessage =
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to fetch fee summary";
+      console.error("Get fee summary error:", {
+        status: err.response?.status,
+        data: err.response?.data,
       });
       toast.error(errorMessage);
       return rejectWithValue(errorMessage);
@@ -155,7 +234,8 @@ const companyFeeSlice = createSlice({
       .addCase(updateCompanyFeeStructure.fulfilled, (state, action) => {
         state.status = "succeeded";
         const index = state.feeStructures.findIndex(
-          (fee) => fee.feeID === action.payload.feeID
+          (fee) =>
+            fee.CompanyFeeStructureID === action.payload.CompanyFeeStructureID
         );
         if (index !== -1) state.feeStructures[index] = action.payload;
       })
@@ -169,10 +249,54 @@ const companyFeeSlice = createSlice({
       .addCase(deleteCompanyFeeStructure.fulfilled, (state, action) => {
         state.status = "succeeded";
         state.feeStructures = state.feeStructures.filter(
-          (fee) => fee.feeID !== action.payload
+          (fee) => fee.CompanyFeeStructureID !== action.payload
         );
       })
       .addCase(deleteCompanyFeeStructure.rejected, (state, action) => {
+        state.status = "failed";
+        state.error = action.payload;
+      })
+      .addCase(getFeeStructuresByCompanyProductId.pending, (state) => {
+        state.status = "loading";
+      })
+      .addCase(
+        getFeeStructuresByCompanyProductId.fulfilled,
+        (state, action) => {
+          state.status = "succeeded";
+          state.feeStructures = Array.isArray(action.payload)
+            ? action.payload
+            : [];
+        }
+      )
+      .addCase(getFeeStructuresByCompanyProductId.rejected, (state, action) => {
+        state.status = "failed";
+        state.error = action.payload;
+        state.feeStructures = [];
+      })
+      .addCase(applyPaymentToFee.pending, (state) => {
+        state.status = "loading";
+      })
+      .addCase(applyPaymentToFee.fulfilled, (state, action) => {
+        state.status = "succeeded";
+        const index = state.feeStructures.findIndex(
+          (fee) =>
+            fee.CompanyFeeStructureID === action.payload.CompanyFeeStructureID
+        );
+        if (index !== -1) state.feeStructures[index] = action.payload;
+      })
+      .addCase(applyPaymentToFee.rejected, (state, action) => {
+        state.status = "failed";
+        state.error = action.payload;
+      })
+      .addCase(getFeeSummary.pending, (state) => {
+        state.status = "loading";
+      })
+      .addCase(getFeeSummary.fulfilled, (state, action) => {
+        state.status = "succeeded";
+        // Optionally store summary data in a separate state field if needed
+        // state.summary = action.payload;
+      })
+      .addCase(getFeeSummary.rejected, (state, action) => {
         state.status = "failed";
         state.error = action.payload;
       });

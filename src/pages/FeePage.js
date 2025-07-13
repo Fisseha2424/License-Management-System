@@ -23,20 +23,24 @@ const FeePage = () => {
   const [selectedFee, setSelectedFee] = React.useState(null);
 
   useEffect(() => {
+    console.log("useEffect triggered, dispatching getFeeStructures...");
     dispatch(getFeeStructures());
   }, [dispatch]);
 
   const handleAdd = () => {
+    console.log("Handle Add clicked, opening form...");
     setSelectedFee(null);
     setIsFormOpen(true);
   };
 
   const handleEdit = (record) => {
+    console.log("Handle Edit clicked, record:", record);
     setSelectedFee(record);
     setIsFormOpen(true);
   };
 
   const handleDelete = (record) => {
+    console.log("Handle Delete clicked, record:", record);
     dispatch(deleteFeeStructure(record.feeID));
   };
 
@@ -64,18 +68,13 @@ const FeePage = () => {
 
   const columns = [
     {
-      title: "Fee ID",
-      dataIndex: "feeID",
-      key: "feeID",
-      render: (id) => id || "N/A",
-      width: 150,
-    },
-    {
       title: "Fee Type",
       dataIndex: "feeType",
       key: "feeType",
       render: (type) => {
-        const feeType = FEE_TYPES.find((t) => t.value === type);
+        console.log("Rendering Fee Type, type:", type);
+        const feeType = FEE_TYPES.find((t) => t.label === type);
+        console.log("Mapped Fee Type:", feeType);
         return feeType ? (
           <Tag color={feeType.color}>{feeType.label}</Tag>
         ) : (
@@ -84,7 +83,7 @@ const FeePage = () => {
       },
       filters: FEE_TYPES.map((type) => ({
         text: type.label,
-        value: type.value,
+        value: type.label, // Changed from value to label to match filter
       })),
       onFilter: (value, record) => record.feeType === value,
       width: 150,
@@ -94,7 +93,9 @@ const FeePage = () => {
       dataIndex: "licenseType",
       key: "licenseType",
       render: (type) => {
-        const licenseType = LICENSE_TYPES.find((t) => t.value === type);
+        console.log("Rendering License Type, type:", type);
+        const licenseType = LICENSE_TYPES.find((t) => t.label === type);
+        console.log("Mapped License Type:", licenseType);
         return licenseType ? licenseType.label : "N/A";
       },
       width: 200,
@@ -103,10 +104,12 @@ const FeePage = () => {
       title: "Fee Amount",
       dataIndex: "feeAmount",
       key: "feeAmount",
-      render: (amount) =>
-        `$${Number(amount || 0).toLocaleString("en-US", {
+      render: (amount) => {
+        console.log("Rendering Fee Amount, amount:", amount);
+        return `$${Number(amount || 0).toLocaleString("en-US", {
           minimumFractionDigits: 2,
-        })}`,
+        })}`;
+      },
       sorter: (a, b) => (a.feeAmount || 0) - (b.feeAmount || 0),
       width: 120,
     },
@@ -115,7 +118,9 @@ const FeePage = () => {
       dataIndex: "noOfDevice",
       key: "noOfDevice",
       render: (value) => {
-        const option = NO_OF_USERS_OR_DEVICES.find((o) => o.value === value);
+        console.log("Rendering Number of Devices, value:", value);
+        const option = NO_OF_USERS_OR_DEVICES.find((o) => o.label === value);
+        console.log("Mapped Number of Devices:", option);
         return option ? option.label : "N/A";
       },
       width: 150,
@@ -125,7 +130,9 @@ const FeePage = () => {
       dataIndex: "noOfUsers",
       key: "noOfUsers",
       render: (value) => {
-        const option = NO_OF_USERS_OR_DEVICES.find((o) => o.value === value);
+        console.log("Rendering Number of Users, value:", value);
+        const option = NO_OF_USERS_OR_DEVICES.find((o) => o.label === value);
+        console.log("Mapped Number of Users:", option);
         return option ? option.label : "N/A";
       },
       width: 150,
