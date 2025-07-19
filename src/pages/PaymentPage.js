@@ -154,21 +154,7 @@ const PaymentPage = () => {
       key: "expiryDate",
       render: (date) => (date ? new Date(date).toLocaleDateString() : "N/A"),
     },
-    {
-      title: "Status",
-      dataIndex: "status",
-      key: "status",
-      render: (status) => (
-        <span
-          style={{
-            color:
-              status === 1 ? "#ff4d4f" : status === 2 ? "#52c41a" : "#faad14",
-          }}
-        >
-          {status === 1 ? "Pending" : status === 2 ? "Approved" : "Rejected"}
-        </span>
-      ),
-    },
+
     {
       title: "Payment Document",
       dataIndex: "paymentDocument",

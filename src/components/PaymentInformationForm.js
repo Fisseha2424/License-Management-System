@@ -11,28 +11,45 @@
 //   Button,
 //   Select,
 //   InputNumber,
+//   Checkbox,
 //   message,
 // } from "antd";
 // import { UploadOutlined } from "@ant-design/icons";
 // import PropTypes from "prop-types";
 // import dayjs from "dayjs";
-// import { getCompanyFeeStructures } from "../slices/companyFeeSlice";
+// import {
+//   getCompanyFeeStructures,
+//   updateCompanyFeeStructure,
+// } from "../slices/companyFeeSlice";
+// import { getSubscriptions } from "../slices/companyProductSubscriptionSlice";
+// import { getProducts } from "../slices/productSlice";
 // import {
 //   getPayments,
 //   approvePayment,
 //   rejectPayment,
 // } from "../slices/paymentSlice";
+// import { generateLicense, checkExpiry } from "../slices/licenseSlice";
 
 // const { TextArea } = Input;
 // const { Option } = Select;
 
 // const PaymentStatus = {
-//   Pending: 1,
-//   Partial: 2,
-//   Completed: 3,
-//   Overdue: 4,
-//   Cancelled: 5,
-//   Rejected: 6,
+//   Prepared: 1,
+//   Approved: 2,
+//   Cancelled: 3,
+// };
+
+// const LicenseType = {
+//   TimeLimitedLicenses: 1,
+//   DeviceLimitedLicenses: 2,
+//   FloatingLicenses: 3,
+// };
+
+// const NoOfUsersOrDevices = {
+//   ZeroToTen: 1,
+//   ElevenToFifty: 2,
+//   FiftyOneToHundred: 3,
+//   Unlimited: 4,
 // };
 
 // const PaymentInformationForm = ({
@@ -41,12 +58,15 @@
 //   onSubmit,
 //   initialValues,
 //   isStatusOnlyUpdate,
+//   onLicenseGenerated,
 // }) => {
 //   const [form] = Form.useForm();
 //   const [paymentInformation, setPaymentInformation] = useState([]);
 //   const [filteredCompanies, setFilteredCompanies] = useState([]);
+//   const [filteredProducts, setFilteredProducts] = useState([]);
 //   const [maxPaidAmount, setMaxPaidAmount] = useState(0);
 //   const [loading, setLoading] = useState(false);
+//   const [selectedCompany, setSelectedCompany] = useState(null);
 
 //   const dispatch = useDispatch();
 //   const {
@@ -59,18 +79,29 @@
 //     status: paymentStatus = "idle",
 //     error: paymentError = null,
 //   } = useSelector((state) => state.payment || {});
+//   const { subscriptions = [] } = useSelector(
+//     (state) => state.subscription || {}
+//   );
+//   const { products = [] } = useSelector((state) => state.product || {});
 
 //   useEffect(() => {
 //     const fetchData = async () => {
 //       setLoading(true);
 //       try {
 //         console.log(
-//           "[DEBUG] Starting to fetch company fee structures and payments..."
+//           "[DEBUG] Starting to fetch company fee structures, payments, subscriptions, and products..."
 //         );
 
-//         const [feeStructuresResult, paymentsResult] = await Promise.all([
+//         const [
+//           feeStructuresResult,
+//           paymentsResult,
+//           subscriptionsResult,
+//           productsResult,
+//         ] = await Promise.all([
 //           dispatch(getCompanyFeeStructures()).unwrap(),
 //           dispatch(getPayments()).unwrap(),
+//           dispatch(getSubscriptions()).unwrap(),
+//           dispatch(getProducts()).unwrap(),
 //         ]);
 
 //         console.log(
@@ -78,6 +109,11 @@
 //           feeStructuresResult
 //         );
 //         console.log("[DEBUG] Raw payments from Redux:", paymentsResult);
+//         console.log(
+//           "[DEBUG] Raw subscriptions from Redux:",
+//           subscriptionsResult
+//         );
+//         console.log("[DEBUG] Raw products from Redux:", productsResult);
 
 //         if (!Array.isArray(paymentsResult)) {
 //           console.error(
@@ -89,31 +125,27 @@
 //           setPaymentInformation(paymentsResult);
 //         }
 
-//         const companiesWithPayments = (feeStructuresResult || []).filter(
+//         const companiesWithUnpaid = (feeStructuresResult || []).filter(
 //           (company) => {
 //             const hasUnpaid = company.unpaidAmount > 0;
-//             const hasPaid = company.paidAmount > 0;
 //             console.log(
-//               `[DEBUG] Company ${company.companyName} - unpaid: ${
-//                 company.unpaidAmount
-//               }, paid: ${company.paidAmount}, included: ${hasUnpaid && hasPaid}`
+//               `[DEBUG] Company ${company.companyName} - unpaid: ${company.unpaidAmount}, included: ${hasUnpaid}`
 //             );
-//             return hasUnpaid && hasPaid;
+//             return hasUnpaid;
 //           }
 //         );
 
-//         console.log("[DEBUG] Filtered companies:", companiesWithPayments);
-//         setFilteredCompanies(companiesWithPayments);
+//         console.log("[DEBUG] Filtered companies:", companiesWithUnpaid);
+//         setFilteredCompanies(companiesWithUnpaid);
 
-//         if (companiesWithPayments.length === 0) {
-//           console.warn(
-//             "[WARNING] No companies found with both unpaid and paid amount > 0"
-//           );
+//         if (companiesWithUnpaid.length === 0) {
+//           console.warn("[WARNING] No companies found with unpaid amount > 0");
 //         }
 //       } catch (error) {
 //         console.error("[ERROR] Error fetching data:", error);
 //         setFilteredCompanies([]);
 //         setPaymentInformation([]);
+//         setFilteredProducts([]);
 //         message.error("Failed to load company data");
 //       } finally {
 //         setLoading(false);
@@ -136,6 +168,7 @@
 //       console.error("[ERROR] Redux errors:", { feeError, paymentError });
 //       setFilteredCompanies([]);
 //       setPaymentInformation([]);
+//       setFilteredProducts([]);
 //       message.error("Error loading data");
 //     }
 //   }, [feeError, paymentError]);
@@ -153,27 +186,36 @@
 //       form.setFieldsValue({
 //         companyFeeStructureID: initialValues.companyFeeStructureID || "",
 //         companyName: initialValues.companyName || "",
-//         productName: initialValues.productName || "",
+//         productIDs: initialValues.productIDs || [],
 //         unpaidAmount: initialValues.unpaidAmount || 0,
 //         unapprovedAmount: initialValues.unapprovedAmount || 0,
 //         paidAmount: initialValues.paidAmount || 0,
 //         reference: initialValues.reference || "",
 //         paymentDate,
 //         expiryDate,
-//         status: initialValues.status || PaymentStatus.Pending,
+//         status: initialValues.status || PaymentStatus.Prepared,
 //         paymentDocument: initialValues.paymentDocument
 //           ? [{ url: initialValues.paymentDocument }]
 //           : [],
 //         narration: initialValues.narration || "",
 //       });
+
+//       if (initialValues.companyFeeStructureID) {
+//         setSelectedCompany(initialValues.companyFeeStructureID);
+//         handleCompanyChange(initialValues.companyFeeStructureID);
+//       }
 //     } else {
 //       console.log("[DEBUG] Resetting form fields");
 //       form.resetFields();
+//       setSelectedCompany(null);
+//       setFilteredProducts([]);
 //     }
 //   }, [visible, initialValues, form]);
 
 //   const handleCompanyChange = (companyFeeStructureID) => {
 //     console.log("[DEBUG] Company selected:", companyFeeStructureID);
+//     setSelectedCompany(companyFeeStructureID);
+
 //     const selectedCompanyData = filteredCompanies.find(
 //       (company) => company.companyFeeStructureID === companyFeeStructureID
 //     );
@@ -184,43 +226,24 @@
 
 //       form.setFieldsValue({
 //         companyName: selectedCompanyData.companyName,
-//         productName: selectedCompanyData.productName,
 //         unpaidAmount: selectedCompanyData.unpaidAmount,
 //         paidAmount: 0,
+//         productIDs: [],
 //       });
 
-//       const matchingPayment = paymentInformation.find(
-//         (payment) => payment.companyFeeStructureID === companyFeeStructureID
+//       const companyFees = filteredCompanies.filter(
+//         (company) => company.companyName === selectedCompanyData.companyName
 //       );
+//       const availableProducts = companyFees.map((fee) => ({
+//         productID: fee.companyProductID,
+//         productName: fee.productName,
+//       }));
 
-//       if (matchingPayment) {
-//         console.log("[DEBUG] Found matching payment:", matchingPayment);
-//         if (matchingPayment.status === PaymentStatus.Pending) {
-//           console.log(
-//             "[DEBUG] Setting unapproved amount to:",
-//             matchingPayment.feeAmount
-//           );
-//           form.setFieldsValue({
-//             unapprovedAmount: matchingPayment.feeAmount,
-//           });
-//         } else {
-//           console.log(
-//             "[DEBUG] Payment status is not pending, setting unapproved to 0"
-//           );
-//           form.setFieldsValue({
-//             unapprovedAmount: 0,
-//           });
-//         }
-//       } else {
-//         console.log(
-//           "[DEBUG] No matching payment found, setting unapproved to 0"
-//         );
-//         form.setFieldsValue({
-//           unapprovedAmount: 0,
-//         });
-//       }
+//       console.log("[DEBUG] Available products for company:", availableProducts);
+//       setFilteredProducts(availableProducts);
 //     } else {
 //       console.log("[DEBUG] No company data found for selected ID");
+//       setFilteredProducts([]);
 //     }
 //   };
 
@@ -284,7 +307,7 @@
 
 //       if (initialStatus !== newStatus) {
 //         try {
-//           if (newStatus === PaymentStatus.Completed) {
+//           if (newStatus === PaymentStatus.Approved) {
 //             console.log(
 //               "[DEBUG] Dispatching approvePayment for paymentId:",
 //               initialValues.paymentId
@@ -293,10 +316,7 @@
 //             message.success("Payment approved successfully");
 //             onSubmit({ ...values, paymentId: initialValues.paymentId });
 //             return;
-//           } else if (
-//             newStatus === PaymentStatus.Rejected ||
-//             newStatus === PaymentStatus.Cancelled
-//           ) {
+//           } else if (newStatus === PaymentStatus.Cancelled) {
 //             console.log(
 //               "[DEBUG] Dispatching rejectPayment for paymentId:",
 //               initialValues.paymentId
@@ -320,32 +340,53 @@
 //       }
 //     }
 
+//     const selectedCompanyData = filteredCompanies.find(
+//       (company) =>
+//         company.companyFeeStructureID === values.companyFeeStructureID
+//     );
+
+//     if (!selectedCompanyData) {
+//       console.error("[ERROR] Selected company data not found");
+//       message.error("Selected company data not found");
+//       return;
+//     }
+
+//     const isFullPayment = values.paidAmount === values.unpaidAmount;
+//     const status = isFullPayment
+//       ? PaymentStatus.Approved
+//       : PaymentStatus.Prepared;
+
+//     form.setFieldsValue({ status });
+
+//     const submissionData = {
+//       companyFeeStructureID: values.companyFeeStructureID,
+//       companyName: values.companyName,
+//       productIDs: values.productIDs,
+//       unpaidAmount: values.unpaidAmount,
+//       unapprovedAmount: values.unapprovedAmount,
+//       paidAmount: values.paidAmount,
+//       reference: values.reference,
+//       paymentDate: paymentDate,
+//       expiryDate: expiryDate,
+//       status: status,
+//       paymentDocument: null,
+//       narration: values.narration,
+//       paymentId: initialValues?.paymentId || null,
+//     };
+
 //     if (values.paymentDocument?.[0]?.originFileObj) {
 //       console.log("[DEBUG] Processing file upload");
 //       const reader = new FileReader();
-//       reader.onload = (event) => {
+//       reader.onload = async (event) => {
 //         const base64String = event.target.result.split(",")[1];
-//         paymentDocument = base64String;
+//         submissionData.paymentDocument = base64String;
 //         console.log("[DEBUG] File converted to base64");
 
-//         const submissionData = {
-//           companyFeeStructureID: values.companyFeeStructureID,
-//           companyName: values.companyName,
-//           productName: values.productName,
-//           unpaidAmount: values.unpaidAmount,
-//           unapprovedAmount: values.unapprovedAmount,
-//           paidAmount: values.paidAmount,
-//           reference: values.reference,
-//           paymentDate: paymentDate,
-//           expiryDate: expiryDate,
-//           status: values.status,
-//           paymentDocument: paymentDocument,
-//           narration: values.narration,
-//           paymentId: initialValues?.paymentId || null,
-//         };
-
-//         console.log("[DEBUG] Submitting data:", submissionData);
-//         onSubmit(submissionData);
+//         await processPaymentAndLicense(
+//           submissionData,
+//           selectedCompanyData,
+//           values.productIDs
+//         );
 //       };
 //       reader.onerror = (error) => {
 //         console.error("[ERROR] Error converting file to base64:", error);
@@ -356,26 +397,146 @@
 //       console.log(
 //         "[DEBUG] No new file uploaded, using existing document if available"
 //       );
-//       paymentDocument = initialValues?.paymentDocument || null;
+//       submissionData.paymentDocument = initialValues?.paymentDocument || null;
+//       await processPaymentAndLicense(
+//         submissionData,
+//         selectedCompanyData,
+//         values.productIDs
+//       );
+//     }
+//   };
 
-//       const submissionData = {
-//         companyFeeStructureID: values.companyFeeStructureID,
-//         companyName: values.companyName,
-//         productName: values.productName,
-//         unpaidAmount: values.unpaidAmount,
-//         unapprovedAmount: values.unapprovedAmount,
-//         paidAmount: values.paidAmount,
-//         reference: values.reference,
-//         paymentDate: paymentDate,
-//         expiryDate: expiryDate,
-//         status: values.status,
-//         paymentDocument: paymentDocument,
-//         narration: values.narration,
-//         paymentId: initialValues?.paymentId || null,
-//       };
-
-//       console.log("[DEBUG] Submitting data:", submissionData);
+//   const processPaymentAndLicense = async (
+//     submissionData,
+//     selectedCompanyData,
+//     selectedProductIDs
+//   ) => {
+//     try {
+//       console.log("[DEBUG] Submitting payment data:", submissionData);
 //       onSubmit(submissionData);
+
+//       // Calculate the payment distribution across selected products
+//       const totalPaidAmount = submissionData.paidAmount;
+//       const numProducts = selectedProductIDs.length;
+//       const paidAmountPerProduct =
+//         numProducts > 0 ? totalPaidAmount / numProducts : totalPaidAmount;
+
+//       // Update company fee structure for each selected product
+//       for (const productID of selectedProductIDs) {
+//         const feeStructure = filteredCompanies.find(
+//           (company) => company.companyProductID === productID
+//         );
+
+//         if (!feeStructure) {
+//           console.error(
+//             "[ERROR] Fee structure not found for productID:",
+//             productID
+//           );
+//           message.error(`Fee structure not found for product: ${productID}`);
+//           continue;
+//         }
+
+//         // Calculate new unpaid amount for this product's fee structure
+//         const newUnpaidAmount =
+//           feeStructure.unpaidAmount - paidAmountPerProduct;
+//         if (newUnpaidAmount < 0) {
+//           console.error(
+//             "[ERROR] Calculated unpaid amount is negative for productID:",
+//             productID
+//           );
+//           message.error("Invalid payment amount calculation");
+//           continue;
+//         }
+
+//         const feeUpdateData = {
+//           companyFeeStructureID: feeStructure.companyFeeStructureID,
+//           unpaidAmount: newUnpaidAmount,
+//         };
+
+//         console.log(
+//           "[DEBUG] Updating company fee structure with data:",
+//           feeUpdateData
+//         );
+//         await dispatch(updateCompanyFeeStructure(feeUpdateData)).unwrap();
+//         console.log(
+//           `[DEBUG] Updated unpaid amount for companyFeeStructureID: ${feeStructure.companyFeeStructureID} to ${newUnpaidAmount}`
+//         );
+//       }
+
+//       if (submissionData.status === PaymentStatus.Approved) {
+//         for (const productID of selectedProductIDs) {
+//           const feeStructure = filteredCompanies.find(
+//             (company) => company.companyProductID === productID
+//           );
+
+//           if (!feeStructure) {
+//             console.error(
+//               "[ERROR] Fee structure not found for productID:",
+//               productID
+//             );
+//             message.error(`Fee structure not found for product: ${productID}`);
+//             continue;
+//           }
+
+//           const feeType = feeStructure.feeType || "Subscription";
+//           const licenseType =
+//             LicenseType[feeStructure.licenseType] ||
+//             LicenseType.TimeLimitedLicenses;
+//           const period = 12;
+//           const expiryDate = dayjs("2025-07-14T15:39:00+03:00")
+//             .add(period, "month")
+//             .toDate();
+
+//           let noOfUser = NoOfUsersOrDevices.Unlimited;
+//           let noOfDevice = NoOfUsersOrDevices.Unlimited;
+
+//           if (licenseType === LicenseType.DeviceLimitedLicenses) {
+//             noOfDevice = NoOfUsersOrDevices.ZeroToTen;
+//           } else if (licenseType === LicenseType.FloatingLicenses) {
+//             noOfUser = NoOfUsersOrDevices.ZeroToTen;
+//           }
+
+//           const licenseData = {
+//             companyProductID: feeStructure.companyProductID,
+//             expiryDate: expiryDate.toISOString(),
+//             noOfDevice,
+//             noOfUser,
+//             licenseType,
+//             publicKey: "default-public-key",
+//           };
+
+//           if (feeType === "Subscription") {
+//             console.log(
+//               "[DEBUG] Generating new license for subscription:",
+//               licenseData
+//             );
+//             const actionResult = await dispatch(
+//               generateLicense(licenseData)
+//             ).unwrap();
+//             if (onLicenseGenerated) {
+//               onLicenseGenerated();
+//             }
+//           } else if (feeType === "Renewal") {
+//             console.log("[DEBUG] Updating license for renewal:", licenseData);
+//             console.warn(
+//               "[DEBUG] updateLicense action not implemented, skipping license update"
+//             );
+//           }
+
+//           console.log("[DEBUG] Checking license expiry");
+//           await dispatch(checkExpiry()).unwrap();
+//         }
+
+//         message.success("Payment and license(s) processed successfully");
+//       } else {
+//         console.log("[DEBUG] Partial payment, no license generated");
+//         message.success(
+//           "Partial payment saved and fee structure updated successfully"
+//         );
+//       }
+//     } catch (error) {
+//       console.error("[ERROR] Error processing payment or license:", error);
+//       message.error("Failed to process payment or update fee structure");
 //     }
 //   };
 
@@ -400,14 +561,14 @@
 //         initialValues={{
 //           companyFeeStructureID: "",
 //           companyName: "",
-//           productName: "",
+//           productIDs: [],
 //           unpaidAmount: 0,
 //           unapprovedAmount: 0,
 //           paidAmount: 0,
 //           reference: "",
 //           paymentDate: null,
 //           expiryDate: null,
-//           status: PaymentStatus.Pending,
+//           status: PaymentStatus.Prepared,
 //         }}
 //       >
 //         {isStatusOnlyUpdate ? (
@@ -415,8 +576,8 @@
 //             <Form.Item name="companyName" label="Company Name">
 //               <Input value={initialValues?.companyName} disabled />
 //             </Form.Item>
-//             <Form.Item name="productName" label="Product Name">
-//               <Input value={initialValues?.productName} disabled />
+//             <Form.Item name="productIDs" label="Products">
+//               <Input value={initialValues?.productIDs?.join(", ")} disabled />
 //             </Form.Item>
 //             <Form.Item name="unpaidAmount" label="Unpaid Amount">
 //               <InputNumber
@@ -484,12 +645,9 @@
 //               rules={[{ required: true, message: "Please select status" }]}
 //             >
 //               <Select placeholder="Select status">
-//                 <Option value={PaymentStatus.Pending}>Pending</Option>
-//                 <Option value={PaymentStatus.Partial}>Partial</Option>
-//                 <Option value={PaymentStatus.Completed}>Completed</Option>
-//                 <Option value={PaymentStatus.Overdue}>Overdue</Option>
+//                 <Option value={PaymentStatus.Prepared}>Prepared</Option>
+//                 <Option value={PaymentStatus.Approved}>Approved</Option>
 //                 <Option value={PaymentStatus.Cancelled}>Cancelled</Option>
-//                 <Option value={PaymentStatus.Rejected}>Rejected</Option>
 //               </Select>
 //             </Form.Item>
 //             <Form.Item name="narration" label="Narration">
@@ -517,7 +675,7 @@
 //                     ? "Loading companies..."
 //                     : filteredCompanies.length > 0
 //                     ? "Select company"
-//                     : "No companies with unpaid and paid amount"
+//                     : "No companies with unpaid amount"
 //                 }
 //                 onChange={handleCompanyChange}
 //                 showSearch
@@ -543,8 +701,7 @@
 //                     key={company.companyFeeStructureID}
 //                     value={company.companyFeeStructureID}
 //                   >
-//                     {company.companyName} (Unpaid: ${company.unpaidAmount},
-//                     Paid: ${company.paidAmount})
+//                     {company.companyName} (Unpaid: ${company.unpaidAmount})
 //                   </Option>
 //                 ))}
 //               </Select>
@@ -555,11 +712,22 @@
 //             </Form.Item>
 
 //             <Form.Item
-//               name="productName"
-//               label="Product Name"
-//               rules={[{ required: true, message: "Product name is required" }]}
+//               name="productIDs"
+//               label="Products"
+//               rules={[
+//                 {
+//                   required: true,
+//                   message: "Please select at least one product",
+//                 },
+//               ]}
 //             >
-//               <Input placeholder="Product name (auto-filled)" disabled />
+//               <Checkbox.Group
+//                 options={filteredProducts.map((product) => ({
+//                   label: product.productName,
+//                   value: product.productID,
+//                 }))}
+//                 disabled={!selectedCompany || filteredProducts.length === 0}
+//               />
 //             </Form.Item>
 
 //             <Form.Item
@@ -581,9 +749,7 @@
 //             <Form.Item
 //               name="unapprovedAmount"
 //               label="Unapproved Amount"
-//               rules={[
-//                 { required: true, message: "Unapproved amount is required" },
-//               ]}
+//               rules={[{ required: true, message: "Unpaid amount is required" }]}
 //             >
 //               <InputNumber
 //                 placeholder="Unapproved amount (auto-filled)"
@@ -659,13 +825,10 @@
 //               label="Status"
 //               rules={[{ required: true, message: "Please select status" }]}
 //             >
-//               <Select placeholder="Select status">
-//                 <Option value={PaymentStatus.Pending}>Pending</Option>
-//                 <Option value={PaymentStatus.Partial}>Partial</Option>
-//                 <Option value={PaymentStatus.Completed}>Completed</Option>
-//                 <Option value={PaymentStatus.Overdue}>Overdue</Option>
+//               <Select placeholder="Select status" disabled>
+//                 <Option value={PaymentStatus.Prepared}>Prepared</Option>
+//                 <Option value={PaymentStatus.Approved}>Approved</Option>
 //                 <Option value={PaymentStatus.Cancelled}>Cancelled</Option>
-//                 <Option value={PaymentStatus.Rejected}>Rejected</Option>
 //               </Select>
 //             </Form.Item>
 //           </div>
@@ -717,7 +880,7 @@
 //     paymentId: PropTypes.string,
 //     companyFeeStructureID: PropTypes.string,
 //     companyName: PropTypes.string,
-//     productName: PropTypes.string,
+//     productIDs: PropTypes.arrayOf(PropTypes.string),
 //     unpaidAmount: PropTypes.number,
 //     unapprovedAmount: PropTypes.number,
 //     paidAmount: PropTypes.number,
@@ -736,10 +899,10 @@
 //     isStatusOnlyUpdate: PropTypes.bool,
 //   }),
 //   isStatusOnlyUpdate: PropTypes.bool,
+//   onLicenseGenerated: PropTypes.func,
 // };
 
 // export default PaymentInformationForm;
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -753,17 +916,24 @@ import {
   Button,
   Select,
   InputNumber,
+  Checkbox,
   message,
 } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
 import PropTypes from "prop-types";
 import dayjs from "dayjs";
-import { getCompanyFeeStructures } from "../slices/companyFeeSlice";
+import {
+  getCompanyFeeStructures,
+  updateCompanyFeeStructure,
+} from "../slices/companyFeeSlice";
+import { getSubscriptions } from "../slices/companyProductSubscriptionSlice";
+import { getProducts } from "../slices/productSlice";
 import {
   getPayments,
   approvePayment,
   rejectPayment,
 } from "../slices/paymentSlice";
+import { generateLicense, checkExpiry } from "../slices/licenseSlice";
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -774,18 +944,34 @@ const PaymentStatus = {
   Cancelled: 3,
 };
 
+const LicenseType = {
+  TimeLimitedLicenses: 1,
+  DeviceLimitedLicenses: 2,
+  FloatingLicenses: 3,
+};
+
+const NoOfUsersOrDevices = {
+  ZeroToTen: 1,
+  ElevenToFifty: 2,
+  FiftyOneToHundred: 3,
+  Unlimited: 4,
+};
+
 const PaymentInformationForm = ({
   visible,
   onCancel,
   onSubmit,
   initialValues,
   isStatusOnlyUpdate,
+  onLicenseGenerated,
 }) => {
   const [form] = Form.useForm();
   const [paymentInformation, setPaymentInformation] = useState([]);
   const [filteredCompanies, setFilteredCompanies] = useState([]);
+  const [filteredProducts, setFilteredProducts] = useState([]);
   const [maxPaidAmount, setMaxPaidAmount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [selectedCompany, setSelectedCompany] = useState(null);
 
   const dispatch = useDispatch();
   const {
@@ -798,18 +984,29 @@ const PaymentInformationForm = ({
     status: paymentStatus = "idle",
     error: paymentError = null,
   } = useSelector((state) => state.payment || {});
+  const { subscriptions = [] } = useSelector(
+    (state) => state.subscription || {}
+  );
+  const { products = [] } = useSelector((state) => state.product || {});
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
         console.log(
-          "[DEBUG] Starting to fetch company fee structures and payments..."
+          "[DEBUG] Starting to fetch company fee structures, payments, subscriptions, and products..."
         );
 
-        const [feeStructuresResult, paymentsResult] = await Promise.all([
+        const [
+          feeStructuresResult,
+          paymentsResult,
+          subscriptionsResult,
+          productsResult,
+        ] = await Promise.all([
           dispatch(getCompanyFeeStructures()).unwrap(),
           dispatch(getPayments()).unwrap(),
+          dispatch(getSubscriptions()).unwrap(),
+          dispatch(getProducts()).unwrap(),
         ]);
 
         console.log(
@@ -817,6 +1014,11 @@ const PaymentInformationForm = ({
           feeStructuresResult
         );
         console.log("[DEBUG] Raw payments from Redux:", paymentsResult);
+        console.log(
+          "[DEBUG] Raw subscriptions from Redux:",
+          subscriptionsResult
+        );
+        console.log("[DEBUG] Raw products from Redux:", productsResult);
 
         if (!Array.isArray(paymentsResult)) {
           console.error(
@@ -828,31 +1030,27 @@ const PaymentInformationForm = ({
           setPaymentInformation(paymentsResult);
         }
 
-        const companiesWithPayments = (feeStructuresResult || []).filter(
+        const companiesWithUnpaid = (feeStructuresResult || []).filter(
           (company) => {
             const hasUnpaid = company.unpaidAmount > 0;
-            const hasPaid = company.paidAmount > 0;
             console.log(
-              `[DEBUG] Company ${company.companyName} - unpaid: ${
-                company.unpaidAmount
-              }, paid: ${company.paidAmount}, included: ${hasUnpaid && hasPaid}`
+              `[DEBUG] Company ${company.companyName} - unpaid: ${company.unpaidAmount}, included: ${hasUnpaid}`
             );
-            return hasUnpaid && hasPaid;
+            return hasUnpaid;
           }
         );
 
-        console.log("[DEBUG] Filtered companies:", companiesWithPayments);
-        setFilteredCompanies(companiesWithPayments);
+        console.log("[DEBUG] Filtered companies:", companiesWithUnpaid);
+        setFilteredCompanies(companiesWithUnpaid);
 
-        if (companiesWithPayments.length === 0) {
-          console.warn(
-            "[WARNING] No companies found with both unpaid and paid amount > 0"
-          );
+        if (companiesWithUnpaid.length === 0) {
+          console.warn("[WARNING] No companies found with unpaid amount > 0");
         }
       } catch (error) {
         console.error("[ERROR] Error fetching data:", error);
         setFilteredCompanies([]);
         setPaymentInformation([]);
+        setFilteredProducts([]);
         message.error("Failed to load company data");
       } finally {
         setLoading(false);
@@ -875,6 +1073,7 @@ const PaymentInformationForm = ({
       console.error("[ERROR] Redux errors:", { feeError, paymentError });
       setFilteredCompanies([]);
       setPaymentInformation([]);
+      setFilteredProducts([]);
       message.error("Error loading data");
     }
   }, [feeError, paymentError]);
@@ -892,7 +1091,7 @@ const PaymentInformationForm = ({
       form.setFieldsValue({
         companyFeeStructureID: initialValues.companyFeeStructureID || "",
         companyName: initialValues.companyName || "",
-        productName: initialValues.productName || "",
+        productIDs: initialValues.productIDs || [],
         unpaidAmount: initialValues.unpaidAmount || 0,
         unapprovedAmount: initialValues.unapprovedAmount || 0,
         paidAmount: initialValues.paidAmount || 0,
@@ -905,14 +1104,23 @@ const PaymentInformationForm = ({
           : [],
         narration: initialValues.narration || "",
       });
+
+      if (initialValues.companyFeeStructureID) {
+        setSelectedCompany(initialValues.companyFeeStructureID);
+        handleCompanyChange(initialValues.companyFeeStructureID);
+      }
     } else {
       console.log("[DEBUG] Resetting form fields");
       form.resetFields();
+      setSelectedCompany(null);
+      setFilteredProducts([]);
     }
   }, [visible, initialValues, form]);
 
   const handleCompanyChange = (companyFeeStructureID) => {
     console.log("[DEBUG] Company selected:", companyFeeStructureID);
+    setSelectedCompany(companyFeeStructureID);
+
     const selectedCompanyData = filteredCompanies.find(
       (company) => company.companyFeeStructureID === companyFeeStructureID
     );
@@ -923,43 +1131,27 @@ const PaymentInformationForm = ({
 
       form.setFieldsValue({
         companyName: selectedCompanyData.companyName,
-        productName: selectedCompanyData.productName,
         unpaidAmount: selectedCompanyData.unpaidAmount,
         paidAmount: 0,
+        productIDs: [],
       });
 
-      const matchingPayment = paymentInformation.find(
-        (payment) => payment.companyFeeStructureID === companyFeeStructureID
+      // Filter products based on companyName and ensure companyProductID exists
+      const companyFees = filteredCompanies.filter(
+        (company) =>
+          company.companyName === selectedCompanyData.companyName &&
+          company.companyProductID
       );
+      const availableProducts = companyFees.map((fee) => ({
+        productID: fee.companyProductID,
+        productName: fee.productName,
+      }));
 
-      if (matchingPayment) {
-        console.log("[DEBUG] Found matching payment:", matchingPayment);
-        if (matchingPayment.status === PaymentStatus.Prepared) {
-          console.log(
-            "[DEBUG] Setting unapproved amount to:",
-            matchingPayment.feeAmount
-          );
-          form.setFieldsValue({
-            unapprovedAmount: matchingPayment.feeAmount,
-          });
-        } else {
-          console.log(
-            "[DEBUG] Payment status is not prepared, setting unapproved to 0"
-          );
-          form.setFieldsValue({
-            unapprovedAmount: 0,
-          });
-        }
-      } else {
-        console.log(
-          "[DEBUG] No matching payment found, setting unapproved to 0"
-        );
-        form.setFieldsValue({
-          unapprovedAmount: 0,
-        });
-      }
+      console.log("[DEBUG] Available products for company:", availableProducts);
+      setFilteredProducts(availableProducts);
     } else {
       console.log("[DEBUG] No company data found for selected ID");
+      setFilteredProducts([]);
     }
   };
 
@@ -1031,6 +1223,7 @@ const PaymentInformationForm = ({
             await dispatch(approvePayment(initialValues.paymentId)).unwrap();
             message.success("Payment approved successfully");
             onSubmit({ ...values, paymentId: initialValues.paymentId });
+            onCancel(); // Close the modal
             return;
           } else if (newStatus === PaymentStatus.Cancelled) {
             console.log(
@@ -1040,6 +1233,7 @@ const PaymentInformationForm = ({
             await dispatch(rejectPayment(initialValues.paymentId)).unwrap();
             message.success("Payment rejected successfully");
             onSubmit({ ...values, paymentId: initialValues.paymentId });
+            onCancel(); // Close the modal
             return;
           }
         } catch (error) {
@@ -1056,32 +1250,53 @@ const PaymentInformationForm = ({
       }
     }
 
+    const selectedCompanyData = filteredCompanies.find(
+      (company) =>
+        company.companyFeeStructureID === values.companyFeeStructureID
+    );
+
+    if (!selectedCompanyData) {
+      console.error("[ERROR] Selected company data not found");
+      message.error("Selected company data not found");
+      return;
+    }
+
+    const isFullPayment = values.paidAmount === values.unpaidAmount;
+    const status = isFullPayment
+      ? PaymentStatus.Approved
+      : PaymentStatus.Prepared;
+
+    form.setFieldsValue({ status });
+
+    const submissionData = {
+      companyFeeStructureID: values.companyFeeStructureID,
+      companyName: values.companyName,
+      productIDs: values.productIDs,
+      unpaidAmount: values.unpaidAmount,
+      unapprovedAmount: values.unapprovedAmount,
+      paidAmount: values.paidAmount,
+      reference: values.reference,
+      paymentDate: paymentDate,
+      expiryDate: expiryDate,
+      status: status,
+      paymentDocument: null,
+      narration: values.narration,
+      paymentId: initialValues?.paymentId || null,
+    };
+
     if (values.paymentDocument?.[0]?.originFileObj) {
       console.log("[DEBUG] Processing file upload");
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         const base64String = event.target.result.split(",")[1];
-        paymentDocument = base64String;
+        submissionData.paymentDocument = base64String;
         console.log("[DEBUG] File converted to base64");
 
-        const submissionData = {
-          companyFeeStructureID: values.companyFeeStructureID,
-          companyName: values.companyName,
-          productName: values.productName,
-          unpaidAmount: values.unpaidAmount,
-          unapprovedAmount: values.unapprovedAmount,
-          paidAmount: values.paidAmount,
-          reference: values.reference,
-          paymentDate: paymentDate,
-          expiryDate: expiryDate,
-          status: values.status,
-          paymentDocument: paymentDocument,
-          narration: values.narration,
-          paymentId: initialValues?.paymentId || null,
-        };
-
-        console.log("[DEBUG] Submitting data:", submissionData);
-        onSubmit(submissionData);
+        await processPaymentAndLicense(
+          submissionData,
+          selectedCompanyData,
+          values.productIDs
+        );
       };
       reader.onerror = (error) => {
         console.error("[ERROR] Error converting file to base64:", error);
@@ -1092,26 +1307,173 @@ const PaymentInformationForm = ({
       console.log(
         "[DEBUG] No new file uploaded, using existing document if available"
       );
-      paymentDocument = initialValues?.paymentDocument || null;
+      submissionData.paymentDocument = initialValues?.paymentDocument || null;
+      await processPaymentAndLicense(
+        submissionData,
+        selectedCompanyData,
+        values.productIDs
+      );
+    }
+    onCancel();
+  };
 
-      const submissionData = {
-        companyFeeStructureID: values.companyFeeStructureID,
-        companyName: values.companyName,
-        productName: values.productName,
-        unpaidAmount: values.unpaidAmount,
-        unapprovedAmount: values.unapprovedAmount,
-        paidAmount: values.paidAmount,
-        reference: values.reference,
-        paymentDate: paymentDate,
-        expiryDate: expiryDate,
-        status: values.status,
-        paymentDocument: paymentDocument,
-        narration: values.narration,
-        paymentId: initialValues?.paymentId || null,
-      };
-
-      console.log("[DEBUG] Submitting data:", submissionData);
+  const processPaymentAndLicense = async (
+    submissionData,
+    selectedCompanyData,
+    selectedProductIDs
+  ) => {
+    try {
+      console.log("[DEBUG] Submitting payment data:", submissionData);
       onSubmit(submissionData);
+
+      // Calculate the payment distribution across selected products
+      const totalPaidAmount = submissionData.paidAmount;
+      const numProducts = selectedProductIDs.length;
+      const paidAmountPerProduct =
+        numProducts > 0 ? totalPaidAmount / numProducts : totalPaidAmount;
+
+      // Validate productIDs against filteredCompanies
+      const validProductIDs = selectedProductIDs.filter((productID) =>
+        filteredCompanies.some(
+          (company) => company.companyProductID === productID
+        )
+      );
+
+      if (validProductIDs.length !== selectedProductIDs.length) {
+        console.warn(
+          "[WARNING] Some productIDs are invalid:",
+          selectedProductIDs.filter((id) => !validProductIDs.includes(id))
+        );
+        message.warning(
+          "Some selected products are invalid and will be skipped"
+        );
+      }
+
+      if (validProductIDs.length === 0) {
+        console.error("[ERROR] No valid product IDs selected");
+        message.error("No valid products selected for payment");
+        return;
+      }
+
+      // Update company fee structure for each valid product
+      for (const productID of validProductIDs) {
+        const feeStructure = filteredCompanies.find(
+          (company) => company.companyProductID === productID
+        );
+
+        if (!feeStructure) {
+          console.error(
+            "[ERROR] Fee structure not found for productID:",
+            productID
+          );
+          message.error(`Fee structure not found for product: ${productID}`);
+          continue;
+        }
+
+        // Calculate new unpaid amount for this product's fee structure
+        const newUnpaidAmount =
+          feeStructure.unpaidAmount - paidAmountPerProduct;
+        if (newUnpaidAmount < 0) {
+          console.error(
+            "[ERROR] Calculated unpaid amount is negative for productID:",
+            productID
+          );
+          message.error("Invalid payment amount calculation");
+          continue;
+        }
+
+        const feeUpdateData = {
+          companyFeeStructureID: feeStructure.companyFeeStructureID,
+          unpaidAmount: newUnpaidAmount,
+        };
+
+        console.log(
+          "[DEBUG] Updating company fee structure with data:",
+          feeUpdateData
+        );
+        await dispatch(updateCompanyFeeStructure(feeUpdateData)).unwrap();
+        console.log(
+          `[DEBUG] Updated unpaid amount for companyFeeStructureID: ${feeStructure.companyFeeStructureID} to ${newUnpaidAmount}`
+        );
+      }
+
+      if (submissionData.status === PaymentStatus.Approved) {
+        for (const productID of validProductIDs) {
+          const feeStructure = filteredCompanies.find(
+            (company) => company.companyProductID === productID
+          );
+
+          if (!feeStructure) {
+            console.error(
+              "[ERROR] Fee structure not found for productID:",
+              productID
+            );
+            message.error(`Fee structure not found for product: ${productID}`);
+            continue;
+          }
+
+          const feeType = feeStructure.feeType || "Subscription";
+          const licenseType =
+            LicenseType[feeStructure.licenseType] ||
+            LicenseType.TimeLimitedLicenses;
+          const period = 12;
+          const expiryDate = dayjs("2025-07-14T15:39:00+03:00")
+            .add(period, "month")
+            .toDate();
+
+          let noOfUser = NoOfUsersOrDevices.Unlimited;
+          let noOfDevice = NoOfUsersOrDevices.Unlimited;
+
+          if (licenseType === LicenseType.DeviceLimitedLicenses) {
+            noOfDevice = NoOfUsersOrDevices.ZeroToTen;
+          } else if (licenseType === LicenseType.FloatingLicenses) {
+            noOfUser = NoOfUsersOrDevices.ZeroToTen;
+          }
+
+          const licenseData = {
+            companyProductID: feeStructure.companyProductID,
+            expiryDate: expiryDate.toISOString(),
+            noOfDevice,
+            noOfUser,
+            licenseType,
+            publicKey: "default-public-key",
+          };
+
+          if (feeType === "Subscription") {
+            console.log(
+              "[DEBUG] Generating new license for subscription:",
+              licenseData
+            );
+            const actionResult = await dispatch(
+              generateLicense(licenseData)
+            ).unwrap();
+            if (onLicenseGenerated) {
+              onLicenseGenerated();
+            }
+          } else if (feeType === "Renewal") {
+            console.log("[DEBUG] Updating license for renewal:", licenseData);
+            console.warn(
+              "[DEBUG] updateLicense action not implemented, skipping license update"
+            );
+          }
+
+          console.log("[DEBUG] Checking license expiry");
+          await dispatch(checkExpiry()).unwrap();
+        }
+
+        message.success("Payment and license(s) processed successfully");
+      } else {
+        console.log("[DEBUG] Partial payment, no license generated");
+        message.success(
+          "Partial payment saved and fee structure updated successfully"
+        );
+      }
+
+      // Close the modal after successful processing
+      onCancel();
+    } catch (error) {
+      console.error("[ERROR] Error processing payment or license:", error);
+      message.error("Failed to process payment or update fee structure");
     }
   };
 
@@ -1136,7 +1498,7 @@ const PaymentInformationForm = ({
         initialValues={{
           companyFeeStructureID: "",
           companyName: "",
-          productName: "",
+          productIDs: [],
           unpaidAmount: 0,
           unapprovedAmount: 0,
           paidAmount: 0,
@@ -1151,8 +1513,8 @@ const PaymentInformationForm = ({
             <Form.Item name="companyName" label="Company Name">
               <Input value={initialValues?.companyName} disabled />
             </Form.Item>
-            <Form.Item name="productName" label="Product Name">
-              <Input value={initialValues?.productName} disabled />
+            <Form.Item name="productIDs" label="Products">
+              <Input value={initialValues?.productIDs?.join(", ")} disabled />
             </Form.Item>
             <Form.Item name="unpaidAmount" label="Unpaid Amount">
               <InputNumber
@@ -1250,7 +1612,7 @@ const PaymentInformationForm = ({
                     ? "Loading companies..."
                     : filteredCompanies.length > 0
                     ? "Select company"
-                    : "No companies with unpaid and paid amount"
+                    : "No companies with unpaid amount"
                 }
                 onChange={handleCompanyChange}
                 showSearch
@@ -1276,8 +1638,7 @@ const PaymentInformationForm = ({
                     key={company.companyFeeStructureID}
                     value={company.companyFeeStructureID}
                   >
-                    {company.companyName} (Unpaid: ${company.unpaidAmount},
-                    Paid: ${company.paidAmount})
+                    {company.companyName} (Unpaid: ${company.unpaidAmount})
                   </Option>
                 ))}
               </Select>
@@ -1288,11 +1649,22 @@ const PaymentInformationForm = ({
             </Form.Item>
 
             <Form.Item
-              name="productName"
-              label="Product Name"
-              rules={[{ required: true, message: "Product name is required" }]}
+              name="productIDs"
+              label="Products"
+              rules={[
+                {
+                  required: true,
+                  message: "Please select at least one product",
+                },
+              ]}
             >
-              <Input placeholder="Product name (auto-filled)" disabled />
+              <Checkbox.Group
+                options={filteredProducts.map((product) => ({
+                  label: product.productName,
+                  value: product.productID,
+                }))}
+                disabled={!selectedCompany || filteredProducts.length === 0}
+              />
             </Form.Item>
 
             <Form.Item
@@ -1314,9 +1686,7 @@ const PaymentInformationForm = ({
             <Form.Item
               name="unapprovedAmount"
               label="Unapproved Amount"
-              rules={[
-                { required: true, message: "Unapproved amount is required" },
-              ]}
+              rules={[{ required: true, message: "Unpaid amount is required" }]}
             >
               <InputNumber
                 placeholder="Unapproved amount (auto-filled)"
@@ -1392,7 +1762,7 @@ const PaymentInformationForm = ({
               label="Status"
               rules={[{ required: true, message: "Please select status" }]}
             >
-              <Select placeholder="Select status">
+              <Select placeholder="Select status" disabled>
                 <Option value={PaymentStatus.Prepared}>Prepared</Option>
                 <Option value={PaymentStatus.Approved}>Approved</Option>
                 <Option value={PaymentStatus.Cancelled}>Cancelled</Option>
@@ -1447,7 +1817,7 @@ PaymentInformationForm.propTypes = {
     paymentId: PropTypes.string,
     companyFeeStructureID: PropTypes.string,
     companyName: PropTypes.string,
-    productName: PropTypes.string,
+    productIDs: PropTypes.arrayOf(PropTypes.string),
     unpaidAmount: PropTypes.number,
     unapprovedAmount: PropTypes.number,
     paidAmount: PropTypes.number,
@@ -1466,6 +1836,7 @@ PaymentInformationForm.propTypes = {
     isStatusOnlyUpdate: PropTypes.bool,
   }),
   isStatusOnlyUpdate: PropTypes.bool,
+  onLicenseGenerated: PropTypes.func,
 };
 
 export default PaymentInformationForm;

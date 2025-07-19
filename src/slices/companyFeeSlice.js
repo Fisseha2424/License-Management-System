@@ -2,7 +2,8 @@ import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
 import { toast } from "react-toastify";
 
-const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5212/api";
+const API_URL =
+  process.env.REACT_APP_API_URL || "http://192.168.1.101:5212/api";
 
 const initialState = {
   feeStructures: [],

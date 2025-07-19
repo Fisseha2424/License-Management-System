@@ -2,7 +2,8 @@ import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { toast } from "react-toastify";
 import axios from "axios";
 
-const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5212/api";
+const API_URL =
+  process.env.REACT_APP_API_URL || "http://192.168.1.101:5212/api";
 
 export const getPayments = createAsyncThunk(
   "payment/getPayments",
